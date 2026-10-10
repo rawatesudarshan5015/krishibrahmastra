@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: postgis/postgis:15-3.4
+    environment:
+      POSTGRES_DB: bioinput_dev
+      POSTGRES_USER: bioinput
+      POSTGRES_PASSWORD: devpassword
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  minio-setup:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb myminio/bioinput-scans || true;
+      mc anonymous set public myminio/bioinput-scans;
+      exit 0;
+      "
+
+  api:
+    build:
+      context: ./krishibrahmastra-api
+      dockerfile: Dockerfile
+    volumes:
+      - ./krishibrahmastra-api:/app
+    ports:
+      - "8000:8000"
+    env_file: ./krishibrahmastra-api/.env
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build:
+      context: ./krishibrahmastra-api
+      dockerfile: Dockerfile
+    volumes:
+      - ./krishibrahmastra-api:/app
+    env_file: ./krishibrahmastra-api/.env
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+
+  web:
+    build:
+      context: ./krishibrahmastra-web
+      dockerfile: Dockerfile
+    volumes:
+      - ./krishibrahmastra-web:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    env_file: ./krishibrahmastra-web/.env.local
+    depends_on:
+      - api
+    command: npm run dev -- --host
+
+volumes:
+  pgdata:
+  minio_data:
