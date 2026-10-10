@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-py"
+  interface = "asyncio"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(FARMER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  refreshTokens RefreshToken[]
+  scans        Scan[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model Scan {
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id])
+  status           ScanStatus  @default(PENDING)
+  imageKey         String?     // S3 object key for audit trail
+  rawOcrText       String?     // Raw OCR output for debugging
+  matchedChemical  String?     // Matched chemical name
+  confidence       Float?      // OCR + match confidence (0.0–1.0)
+  errorMessage     String?     // If status = FAILED
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  alternatives     Alternative[]
+}
+
+model Chemical {
+  id               String        @id @default(cuid())
+  name             String        @unique
+  commonNames      String[]      // e.g. ["Confidor", "Gaucho"]
+  category         String        // e.g. "Insecticide"
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  alternatives     Alternative[]
+}
+
+model Alternative {
+  id               String   @id @default(cuid())
+  chemicalId       String
+  chemical         Chemical @relation(fields: [chemicalId], references: [id])
+  scanId           String?
+  scan             Scan?    @relation(fields: [scanId], references: [id])
+  name             String   // Bio alternative name
+  type             String   // e.g. "Botanical", "Microbial", "Mineral"
+  preparationSteps String[] // Step-by-step guide
+  pros             String[]
+  cons             String[]
+  efficacyRating   Float    // 0.0–5.0
+  createdAt        DateTime @default(now())
+}
+
+enum Role {
+  FARMER
+  ADMIN
+}
+
+enum ScanStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model BioResourceCenter {
+  id            String   @id @default(cuid())
+  name          String
+  operatorType  String   // "Government" | "Cooperative" | "NGO"
+  address       String
+  contactNumber String
+  latitude      Float
+  longitude     Float
+  geom          Unsupported("geometry")?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+}

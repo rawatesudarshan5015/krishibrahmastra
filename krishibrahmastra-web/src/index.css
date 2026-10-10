@@ -1,0 +1,29 @@
+@import "tailwindcss";
+@layer base {
+  body {
+    @apply antialiased text-gray-900 bg-gray-50;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    overscroll-behavior: none;
+  }
+
+  /* Prevent pull-to-refresh on Android */
+  html {
+    overscroll-behavior-y: none;
+  }
+
+  /* Smooth scroll for anchor links */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Better touch targets for mobile */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+
+  /* Safe area padding for iOS notch */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
